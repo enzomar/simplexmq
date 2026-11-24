@@ -50,6 +50,7 @@ import Simplex.Messaging.Client.Agent
 import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Notifications.Protocol
 import Simplex.Messaging.Notifications.Server.Push.APNS
+import Simplex.Messaging.Notifications.Server.Push.FCM (createFCMPushClient, defaultFCMPushClientConfig, fcmPushProviderClient)
 import Simplex.Messaging.Notifications.Server.Stats
 import Simplex.Messaging.Notifications.Server.Store.Postgres
 import Simplex.Messaging.Notifications.Server.Store.Types
@@ -217,9 +218,11 @@ getPushClient s@NtfPushServer {apnsConfig = APNSPushClientConfig {reconnectInter
 
 newPushClient :: NtfPushServer -> PushProvider -> PushClientVar -> IO (PushProviderClient, PushClientVar)
 newPushClient NtfPushServer {pushClients, apnsConfig} pp v = do
-  r <- E.try $ case apnsProviderHost pp of
-    Nothing -> pure $ \_ _ -> pure ()
-    Just host -> apnsPushProviderClient <$> createAPNSPushClient host apnsConfig
+  r <- E.try $ case pp of
+    PPFcm -> fcmPushProviderClient <$> createFCMPushClient defaultFCMPushClientConfig -- Pheme
+    _ -> case apnsProviderHost pp of
+      Nothing -> pure $ \_ _ -> pure ()
+      Just host -> apnsPushProviderClient <$> createAPNSPushClient host apnsConfig
   atomically $ do
     putTMVar (sessionVar v) r
     case r of
