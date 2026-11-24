@@ -406,6 +406,7 @@ data PushProvider
   | PPApnsProd -- production environment, including TestFlight
   | PPApnsTest -- used for tests, to use APNS mock server
   | PPApnsNull -- used to test servers from the client - does not communicate with APNS
+  | PPFcm -- Pheme: Firebase Cloud Messaging (Android); the token is the raw FCM registration token
   deriving (Eq, Ord, Show)
 
 instance Encoding PushProvider where
@@ -414,12 +415,14 @@ instance Encoding PushProvider where
     PPApnsProd -> "AP"
     PPApnsTest -> "AT"
     PPApnsNull -> "AN"
+    PPFcm -> "FC"
   smpP =
     A.take 2 >>= \case
       "AD" -> pure PPApnsDev
       "AP" -> pure PPApnsProd
       "AT" -> pure PPApnsTest
       "AN" -> pure PPApnsNull
+      "FC" -> pure PPFcm
       _ -> fail "bad PushProvider"
 
 instance StrEncoding PushProvider where
@@ -428,12 +431,14 @@ instance StrEncoding PushProvider where
     PPApnsProd -> "apns_prod"
     PPApnsTest -> "apns_test"
     PPApnsNull -> "apns_null"
+    PPFcm -> "fcm"
   strP =
     A.takeTill (== ' ') >>= \case
       "apns_dev" -> pure PPApnsDev
       "apns_prod" -> pure PPApnsProd
       "apns_test" -> pure PPApnsTest
       "apns_null" -> pure PPApnsNull
+      "fcm" -> pure PPFcm
       _ -> fail "bad PushProvider"
 
 instance FromField PushProvider where fromField = fromTextField_ $ eitherToMaybe . strDecode . encodeUtf8
@@ -449,9 +454,15 @@ instance Encoding DeviceToken where
 
 instance StrEncoding DeviceToken where
   strEncode (DeviceToken p t) = strEncode p <> " " <> t
-  strP = nullToken <|> hexToken
+  strP = nullToken <|> fcmToken <|> hexToken
     where
       nullToken = "apns_null test_ntf_token" $> DeviceToken PPApnsNull "test_ntf_token"
+      -- FCM registration tokens are not hex ([A-Za-z0-9_-] plus ':'); kept raw, so they fit the
+      -- 1-byte length prefix of the binary encoding (hex would double them past 255 bytes).
+      fcmToken = "fcm " *> (DeviceToken PPFcm <$> fcmTokenP)
+      fcmTokenP =
+        A.takeWhile1 (`B.elem` "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_:") >>= \s ->
+          if B.length s <= 255 then pure s else fail "FCM token too long"
       hexToken = DeviceToken <$> strP <* A.space <*> hexStringP
       hexStringP =
         A.takeWhile (`B.elem` "0123456789abcdef") >>= \s ->

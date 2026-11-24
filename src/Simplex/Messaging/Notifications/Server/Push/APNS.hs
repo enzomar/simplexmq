@@ -201,6 +201,7 @@ apnsProviderHost = \case
   PPApnsTest -> Just "localhost"
   PPApnsDev -> Just "api.sandbox.push.apple.com"
   PPApnsProd -> Just "api.push.apple.com"
+  PPFcm -> Nothing -- not an APNS provider (FCM delivery: Pheme ntf-server branch)
 
 defaultAPNSPushClientConfig :: APNSPushClientConfig
 defaultAPNSPushClientConfig =
