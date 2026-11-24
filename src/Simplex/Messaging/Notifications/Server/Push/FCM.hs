@@ -56,6 +56,7 @@ import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Notifications.Protocol
 import Simplex.Messaging.Notifications.Server.Push.APNS (PushNotification (..), PushProviderClient, PushProviderError (..))
 import Simplex.Messaging.Notifications.Server.Store.Types (NtfTknRec (..))
+import Simplex.Messaging.Transport.Client (TransportClientConfig (..))
 import Simplex.Messaging.Transport.HTTP2 (HTTP2Body (..))
 import Simplex.Messaging.Transport.HTTP2.Client
 import Simplex.Messaging.Util (safeDecodeUtf8, tshow)
@@ -84,7 +85,13 @@ defaultFCMPushClientConfig =
       fcmHost = "fcm.googleapis.com",
       oauthHost = "oauth2.googleapis.com",
       httpsPort = "443",
-      http2cfg = defaultHTTP2ClientConfig {bufferSize = 16384},
+      http2cfg =
+        defaultHTTP2ClientConfig
+          { bufferSize = 16384,
+            -- Google front ends need SNI (disabled by default in SimpleX transports, which talk to
+            -- their own servers) and ALPN "h2" to speak HTTP/2.
+            transportConfig = (transportConfig defaultHTTP2ClientConfig) {useSNI = True, clientALPN = Just ["h2"]}
+          },
       caStoreFile = "/etc/ssl/cert.pem",
       tokenRefreshMargin = 300
     }
